@@ -33,7 +33,7 @@ st.markdown('<style>div.block-container{padding-top:1rem;}</style>', unsafe_allo
 image = Image.open('logo rohil.png')
 col1, col2 = st.columns([0.1, 0.9])
 with col1:
-    st.image(image, width=90)
+    st.image(image, width=100)
 with col2:
     st.markdown(
         """
@@ -196,7 +196,7 @@ if not df_pilih.empty:
     kasus_puncak = int(df_pilih["Jumlah Kasus"].max())
 
     st.markdown(f"""
-    ---
+                
     ### 📊 Ringkasan Data {penyakit_pilih} Tahun {tahun_pilih}
     - **Total kasus sepanjang tahun:** {total_kasus} kasus  
     - **Puncak kasus:** Minggu ke-**{minggu_puncak}** dengan **{kasus_puncak} kasus**
@@ -223,3 +223,107 @@ if not df_pilih.empty:
 
 else:
     st.info("Tidak ada data untuk penyakit ini pada tahun tersebut.")
+
+
+st.markdown("---")
+
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+
+# ==============================
+# DASHBOARD PERBANDINGAN TREN PENYAKIT PER TAHUN
+# ==============================
+st.subheader("📈 Perbandingan Tren Mingguan Kasus Penyakit (2022–2025)")
+
+# --- 1️⃣ Baca data langsung dari file lokal ---
+file_path = "data_skdr.xlsx"
+excel_data = pd.read_excel(file_path, sheet_name=None)
+
+# Gabungkan semua sheet jadi satu dataframe
+df_list = []
+for sheet_name, df in excel_data.items():
+    df["Tahun"] = int(sheet_name)
+    df_list.append(df)
+df = pd.concat(df_list, ignore_index=True)
+
+# --- 2️⃣ Pastikan kolom sesuai ---
+expected_cols = ["Minggu Ke-", "Nama Penyakit", "Jumlah Kasus"]
+if not all(col in df.columns for col in expected_cols):
+    st.error(f"Pastikan kolom di tiap sheet adalah: {expected_cols}")
+else:
+    # --- 3️⃣ Pilihan penyakit & tahun ---
+    penyakit_pilih = st.selectbox(
+        "🦠 Pilih Nama Penyakit:",
+        sorted(df["Nama Penyakit"].unique())
+    )
+
+    tahun_tersedia = sorted(df["Tahun"].unique())
+    tahun_pilih = st.multiselect(
+        "📅 Pilih Tahun untuk Dibandingkan:",
+        tahun_tersedia,
+        default=tahun_tersedia
+    )
+
+    # --- 4️⃣ Filter data sesuai pilihan ---
+    df_pilih = df[(df["Nama Penyakit"] == penyakit_pilih) & (df["Tahun"].isin(tahun_pilih))].copy()
+
+    if not df_pilih.empty:
+        df_pilih["Minggu Ke-"] = df_pilih["Minggu Ke-"].astype(int)
+        minggu_lengkap = pd.DataFrame({"Minggu Ke-": range(1, 54)})
+
+        df_tampil = []
+        for tahun in sorted(df_pilih["Tahun"].unique()):
+            df_th = df_pilih[df_pilih["Tahun"] == tahun][["Minggu Ke-", "Jumlah Kasus"]]
+            df_th = minggu_lengkap.merge(df_th, on="Minggu Ke-", how="left")
+            df_th["Jumlah Kasus"] = df_th["Jumlah Kasus"].fillna(0)
+            df_th["Tahun"] = tahun
+            df_tampil.append(df_th)
+        df_final = pd.concat(df_tampil, ignore_index=True)
+
+        # --- 5️⃣ Grafik tren mingguan ---
+        fig = go.Figure()
+
+        for tahun in sorted(df_final["Tahun"].unique()):
+            df_tahun = df_final[df_final["Tahun"] == tahun]
+            fig.add_trace(go.Scatter(
+                x=df_tahun["Minggu Ke-"],
+                y=df_tahun["Jumlah Kasus"],
+                mode="lines+markers",
+                name=str(tahun),
+                line=dict(width=2)
+            ))
+
+            # Tambahkan penanda puncak per tahun
+            if df_tahun["Jumlah Kasus"].max() > 0:
+                puncak = df_tahun.loc[df_tahun["Jumlah Kasus"].idxmax()]
+                fig.add_annotation(
+                    x=puncak["Minggu Ke-"],
+                    y=puncak["Jumlah Kasus"],
+                    text=f"{tahun}: {int(puncak['Jumlah Kasus'])}",
+                    showarrow=True,
+                    arrowhead=2,
+                    ax=0, ay=-25,
+                    font=dict(size=11, color="black"),
+                    bgcolor="rgba(255,255,255,0.8)",
+                    bordercolor="gray",
+                    borderwidth=1
+                )
+
+        fig.update_layout(
+            title=f"📊 Tren Mingguan Kasus {penyakit_pilih} ({', '.join(map(str, tahun_pilih))})",
+            xaxis_title="Minggu Ke-",
+            yaxis_title="Jumlah Kasus",
+            xaxis=dict(dtick=1, range=[1, 53]),
+            legend_title_text="Tahun",
+            template="gridon",
+            height=500
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.warning("Tidak ada data untuk kombinasi penyakit dan tahun yang dipilih.")
+
+
+#BATAS CODING
