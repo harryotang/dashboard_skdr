@@ -4,3 +4,8 @@ plotly
 matplotlib
 numpy
 openpyxl
+streamlit==1.39.0
+pandas==2.2.3
+openpyxl==3.1.5
+plotly==5.24.1
+Pillow==10.4.0
