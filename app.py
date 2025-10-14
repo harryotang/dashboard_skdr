@@ -10,12 +10,18 @@ import plotly.express as px
 file_path = "data_skdr.xlsx"
 sheets = pd.read_excel(file_path, sheet_name=None)
 
-# Gabungkan semua sheet jadi satu DataFrame
+# Gabungkan semua sheet jadi satu DataFrame dengan pengecekan sheet name
 df_all = []
 for tahun, data in sheets.items():
-    data["Tahun"] = int(tahun)
+    try:
+        data["Tahun"] = int(tahun)  # hanya ambil sheet dengan nama angka
+    except ValueError:
+        print(f"Sheet '{tahun}' dilewati karena nama sheet bukan angka.")
+        continue
     df_all.append(data)
+
 df = pd.concat(df_all, ignore_index=True)
+
 
 # ==============================
 # KONFIGURASI DASHBOARD
@@ -192,3 +198,4 @@ if not df_pilih.empty:
 
 else:
     st.info("Tidak ada data untuk penyakit ini pada tahun tersebut.")
+
