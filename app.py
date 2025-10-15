@@ -68,16 +68,30 @@ df_filtered = df[df["Tahun"] == tahun_pilih]
 # ==============================
 st.subheader(f"📊 Jumlah Kasus Berdasarkan Penyakit - Tahun {tahun_pilih}")
 
+# Tambah opsi pengurutan
+sort_option = st.radio(
+    "Urutkan berdasarkan jumlah kasus:",
+    ("Descending (terbanyak dulu)", "Ascending (tersedikit dulu)"),
+    horizontal=True
+)
+
+# Hitung total kasus per penyakit dan urutkan
+df_bar = df_filtered.groupby("Nama Penyakit", as_index=False)["Jumlah Kasus"].sum()
+ascending = True if "Ascending" in sort_option else False
+df_bar = df_bar.sort_values(by="Jumlah Kasus", ascending=ascending)
+
+# Buat grafik batang
 fig = px.bar(
-    df_filtered,
+    df_bar,
     x="Nama Penyakit",
     y="Jumlah Kasus",
     color="Nama Penyakit",
     labels={"Jumlah Kasus": "Jumlah Kasus", "Nama Penyakit": "Nama Penyakit"},
     title=f"Distribusi Kasus Penyakit Tahun {tahun_pilih}",
     template="gridon",
-    height=450
+    height=500
 )
+fig.update_layout(xaxis_tickangle=-45)
 st.plotly_chart(fig, use_container_width=True)
 
 # ==============================
