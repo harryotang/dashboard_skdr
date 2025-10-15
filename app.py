@@ -23,12 +23,6 @@ for tahun, data in sheets.items():
 df = pd.concat(df_all, ignore_index=True)
 
 
-# ==============================
-# KONFIGURASI DASHBOARD
-# ==============================
-st.set_page_config(layout="wide", page_title="Dashboard Kesehatan", page_icon="🩺")
-st.markdown('<style>div.block-container{padding-top:1rem;}</style>', unsafe_allow_html=True)
-
 # HEADER
 image = Image.open('logo rohil.png')
 col1, col2 = st.columns([0.1, 0.9])
@@ -327,3 +321,4 @@ else:
 
 
 #BATAS CODING
+
