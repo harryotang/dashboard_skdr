@@ -64,7 +64,7 @@ tahun_pilih = st.selectbox("📆 Pilih Tahun:", tahun_tersedia)
 df_filtered = df[df["Tahun"] == tahun_pilih]
 
 # ==============================
-# GRAFIK JUMLAH KASUS PER PENYAKIT
+# GRAFIK JUMLAH KASUS PER PENYAKIT (BAR + PIE)
 # ==============================
 st.subheader(f"📊 Jumlah Kasus Berdasarkan Penyakit - Tahun {tahun_pilih}")
 
@@ -80,19 +80,61 @@ df_bar = df_filtered.groupby("Nama Penyakit", as_index=False)["Jumlah Kasus"].su
 ascending = True if "Ascending" in sort_option else False
 df_bar = df_bar.sort_values(by="Jumlah Kasus", ascending=ascending)
 
-# Buat grafik batang
-fig = px.bar(
-    df_bar,
-    x="Nama Penyakit",
-    y="Jumlah Kasus",
-    color="Nama Penyakit",
-    labels={"Jumlah Kasus": "Jumlah Kasus", "Nama Penyakit": "Nama Penyakit"},
-    title=f"Distribusi Kasus Penyakit Tahun {tahun_pilih}",
-    template="gridon",
-    height=500
-)
-fig.update_layout(xaxis_tickangle=-45)
-st.plotly_chart(fig, use_container_width=True)
+# Dua kolom untuk bar dan pie chart
+col_bar, col_pie = st.columns(2)
+
+# ====== BAR CHART ======
+with col_bar:
+    fig_bar = px.bar(
+        df_bar,
+        x="Nama Penyakit",
+        y="Jumlah Kasus",
+        color="Nama Penyakit",
+        labels={"Jumlah Kasus": "Jumlah Kasus", "Nama Penyakit": "Nama Penyakit"},
+        title=f"Distribusi Kasus Penyakit Tahun {tahun_pilih}",
+        template="gridon",
+        height=500
+    )
+    fig_bar.update_layout(xaxis_tickangle=-45, showlegend=False)
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+# ====== PIE CHART (SEMUA LABEL BERPANAH, 1 ANGKA DESIMAL TANPA ,0) ======
+with col_pie:
+    if not df_bar.empty:
+        total = df_bar["Jumlah Kasus"].sum()
+
+        # Hitung persentase dan format
+        df_bar["Persen"] = (df_bar["Jumlah Kasus"] / total) * 100
+        df_bar["Label Lengkap"] = df_bar.apply(
+            lambda x: f"{x['Nama Penyakit']} ({x['Persen']:.1f}%)".replace(".0%", "%"),
+            axis=1
+        )
+
+        fig_pie = go.Figure(data=[go.Pie(
+            labels=df_bar["Label Lengkap"],
+            values=df_bar["Jumlah Kasus"],
+            text=df_bar["Label Lengkap"],
+            textinfo="text",
+            textposition="outside",
+            insidetextorientation="radial",
+            hole=0.4,
+            pull=[0.05]*len(df_bar),
+            marker=dict(line=dict(color="white", width=2)),
+            showlegend=False,
+            hovertemplate="%{label}<br>Jumlah: %{value}<extra></extra>"
+        )])
+
+        fig_pie.update_layout(
+            title=f"Persentase Kasus Penyakit Tahun {tahun_pilih}",
+            height=500,
+            margin=dict(t=50, b=50, l=50, r=50),
+            uniformtext_minsize=12,
+            showlegend=False
+        )
+
+        st.plotly_chart(fig_pie, use_container_width=True)
+    else:
+        st.info("Tidak ada data penyakit pada tahun ini.")
 
 # ==============================
 # METRIK UTAMA
