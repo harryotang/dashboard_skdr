@@ -13,27 +13,35 @@ st.set_page_config(layout="wide", page_title="Dashboard Kesehatan", page_icon="�
 st.markdown('<style>div.block-container{padding-top:1rem;}</style>', unsafe_allow_html=True)
 
 # ==============================
-# BACA SEMUA SHEET EXCEL
+# BACA DATA DARI GOOGLE SHEETS (PENGGANTI EXCEL)
 # ==============================
-file_path = "data_skdr.xlsx"
-sheets = pd.read_excel(file_path, sheet_name=None)
+# Pastikan spreadsheet sudah dipublish ke web dalam format CSV
+# Caranya:
+#   File → Share → Publish to the web → pilih "Comma-separated values (.csv)"
+# Lalu salin link CSV-nya ke bawah
+sheet_url = "https://docs.google.com/spreadsheets/d/1pYdy6fjiNM8dBVBrUzje4tW9gvvUKwN4fPu_r0MZThk/export?format=csv&gid=1786208895"
 
-df_all = []
-for tahun, data in sheets.items():
-    try:
-        data["Tahun"] = int(tahun)
-        df_all.append(data)
-    except ValueError:
-        st.warning(f"Sheet '{tahun}' dilewati karena nama sheet bukan angka.")
-        continue
+try:
+    df_raw = pd.read_csv(sheet_url)
+except Exception as e:
+    st.error(f"❌ Gagal membaca data dari Google Sheets: {e}")
+    st.stop()
 
-df = pd.concat(df_all, ignore_index=True)
+# Karena format dari Excel lama berisi beberapa sheet per tahun,
+# maka pastikan data CSV sekarang punya kolom 'Tahun'
+if "Tahun" not in df_raw.columns:
+    st.error("Kolom 'Tahun' tidak ditemukan di spreadsheet. Tambahkan kolom Tahun agar format sama dengan Excel lama.")
+    st.stop()
+
+df = df_raw.copy()
 
 # Pastikan kolom kunci ada
-expected_cols = ["Minggu Ke-", "Nama Penyakit", "Jumlah Kasus"]
+expected_cols = ["Minggu Ke-", "Nama Penyakit", "Jumlah Kasus", "Tahun"]
 if not all(col in df.columns for col in expected_cols):
-    st.error(f"❌ Pastikan setiap sheet memiliki kolom: {expected_cols}")
+    st.error(f"❌ Pastikan spreadsheet memiliki kolom: {expected_cols}")
     st.stop()
+
+df["Tahun"] = df["Tahun"].astype(int)
 
 # ==============================
 # HEADER
@@ -68,19 +76,16 @@ df_filtered = df[df["Tahun"] == tahun_pilih]
 # ==============================
 st.subheader(f"📊 Jumlah Kasus Berdasarkan Penyakit - Tahun {tahun_pilih}")
 
-# Tambah opsi pengurutan
 sort_option = st.radio(
     "Urutkan berdasarkan jumlah kasus:",
     ("Descending (terbanyak dulu)", "Ascending (tersedikit dulu)"),
     horizontal=True
 )
 
-# Hitung total kasus per penyakit dan urutkan
 df_bar = df_filtered.groupby("Nama Penyakit", as_index=False)["Jumlah Kasus"].sum()
 ascending = True if "Ascending" in sort_option else False
 df_bar = df_bar.sort_values(by="Jumlah Kasus", ascending=ascending)
 
-# Dua kolom untuk bar dan pie chart
 col_bar, col_pie = st.columns(2)
 
 # ====== BAR CHART ======
@@ -98,12 +103,10 @@ with col_bar:
     fig_bar.update_layout(xaxis_tickangle=-45, showlegend=False)
     st.plotly_chart(fig_bar, use_container_width=True)
 
-# ====== PIE CHART (SEMUA LABEL BERPANAH, 1 ANGKA DESIMAL TANPA ,0) ======
+# ====== PIE CHART ======
 with col_pie:
     if not df_bar.empty:
         total = df_bar["Jumlah Kasus"].sum()
-
-        # Hitung persentase dan format
         df_bar["Persen"] = (df_bar["Jumlah Kasus"] / total) * 100
         df_bar["Label Lengkap"] = df_bar.apply(
             lambda x: f"{x['Nama Penyakit']} ({x['Persen']:.1f}%)".replace(".0%", "%"),
