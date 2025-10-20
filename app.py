@@ -13,7 +13,7 @@ st.set_page_config(layout="wide", page_title="Dashboard Kesehatan", page_icon="�
 st.markdown('<style>div.block-container{padding-top:1rem;}</style>', unsafe_allow_html=True)
 
 # ==============================
-# BACA DATA DARI GOOGLE SHEETS (PENGGANTI EXCEL)
+# BACA DATA DARI GOOGLE SHEETS
 # ==============================
 sheet_url = "https://docs.google.com/spreadsheets/d/1pYdy6fjiNM8dBVBrUzje4tW9gvvUKwN4fPu_r0MZThk/export?format=csv&gid=1786208895"
 
@@ -26,7 +26,6 @@ except Exception as e:
 # ==============================
 # PEMBERSIHAN DATA
 # ==============================
-# Trim spasi dan pastikan tipe data
 df_raw.columns = df_raw.columns.str.strip()
 for col in ["Nama Penyakit"]:
     df_raw[col] = df_raw[col].astype(str).str.strip()
@@ -34,10 +33,8 @@ for col in ["Nama Penyakit"]:
 for col in ["Tahun", "Minggu Ke-", "Jumlah Kasus"]:
     df_raw[col] = pd.to_numeric(df_raw[col], errors="coerce").fillna(0).astype(int)
 
-# Copy ke df utama
 df = df_raw.copy()
 
-# Pastikan kolom kunci ada
 expected_cols = ["Minggu Ke-", "Nama Penyakit", "Jumlah Kasus", "Tahun"]
 if not all(col in df.columns for col in expected_cols):
     st.error(f"❌ Pastikan spreadsheet memiliki kolom: {expected_cols}")
@@ -46,11 +43,18 @@ if not all(col in df.columns for col in expected_cols):
 # ==============================
 # HEADER
 # ==============================
-image = Image.open('logo rohil.png')
-col1, col2 = st.columns([0.1, 0.9])
-with col1:
-    st.image(image, width=100)
-with col2:
+try:
+    image = Image.open('logo rohil.png')
+    col1, col2 = st.columns([0.1, 0.9])
+    with col1:
+        st.image(image, width=100)
+    with col2:
+        st.markdown("""
+            <center><h1 style='font-weight:bold;'>
+            Dashboard Informasi Kesehatan<br>Puskesmas Bangko Kanan
+            </h1></center>
+        """, unsafe_allow_html=True)
+except:
     st.markdown("""
         <center><h1 style='font-weight:bold;'>
         Dashboard Informasi Kesehatan<br>Puskesmas Bangko Kanan
@@ -76,15 +80,19 @@ df_filtered = df[df["Tahun"] == tahun_pilih]
 # ==============================
 st.subheader(f"📊 Jumlah Kasus Berdasarkan Penyakit - Tahun {tahun_pilih}")
 
+# 🔧 PERBAIKAN: logika sorting disesuaikan agar berfungsi
 sort_option = st.radio(
     "Urutkan berdasarkan jumlah kasus:",
-    ("Paling Tinggi", "Paling Rendah"),
+    ("Tertinggi", "Terendah"),
     horizontal=True
 )
 
 df_bar = df_filtered.groupby("Nama Penyakit", as_index=False)["Jumlah Kasus"].sum()
-ascending = True if "Rendah" in sort_option else False
-df_bar = df_bar.sort_values(by="Jumlah Kasus", ascending=ascending)
+
+if sort_option == "Tertinggi":
+    df_bar = df_bar.sort_values(by="Jumlah Kasus", ascending=False)
+else:
+    df_bar = df_bar.sort_values(by="Jumlah Kasus", ascending=True)
 
 col_bar, col_pie = st.columns(2)
 
@@ -100,7 +108,11 @@ with col_bar:
         template="gridon",
         height=500
     )
-    fig_bar.update_layout(xaxis_tickangle=-45, showlegend=False)
+    fig_bar.update_layout(
+        xaxis_tickangle=-45,
+        showlegend=False,
+        margin=dict(t=50, b=50, l=40, r=20)
+    )
     st.plotly_chart(fig_bar, use_container_width=True)
 
 # ====== PIE CHART ======
@@ -151,8 +163,8 @@ try:
     colA.metric("Penyakit Tertinggi", penyakit_tertinggi)
     colB.metric("Minggu Tertinggi", int(minggu_tertinggi))
     colC.metric("Jumlah Kasus pada Puncak", int(jumlah_puncak))
-except:
-    st.warning("⚠️ Data tidak lengkap untuk menampilkan metrik utama.")
+except Exception as e:
+    st.warning(f"⚠️ Data tidak lengkap: {e}")
 
 # ==============================
 # DOWNLOAD DATA TAHUNAN
@@ -195,7 +207,6 @@ penyakit_pilih = st.selectbox(
 df_pilih = df_filtered[df_filtered["Nama Penyakit"] == penyakit_pilih].copy()
 if not df_pilih.empty:
     df_pilih = df_pilih.sort_values(by="Minggu Ke-")
-    # Gunakan minggu 1–53 sebagai normalisasi
     df_pilih = pd.DataFrame({"Minggu Ke-": range(1, 54)}).merge(
         df_pilih, on="Minggu Ke-", how="left"
     ).fillna(0)
