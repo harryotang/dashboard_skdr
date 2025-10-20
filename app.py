@@ -78,7 +78,7 @@ st.subheader(f"📊 Jumlah Kasus Berdasarkan Penyakit - Tahun {tahun_pilih}")
 
 sort_option = st.radio(
     "Urutkan berdasarkan jumlah kasus:",
-    ("Descending (terbanyak dulu)", "Ascending (tersedikit dulu)"),
+    ("Paling Tinggi", "Paling Rendah"),
     horizontal=True
 )
 
