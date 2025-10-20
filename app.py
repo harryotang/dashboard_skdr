@@ -15,10 +15,6 @@ st.markdown('<style>div.block-container{padding-top:1rem;}</style>', unsafe_allo
 # ==============================
 # BACA DATA DARI GOOGLE SHEETS (PENGGANTI EXCEL)
 # ==============================
-# Pastikan spreadsheet sudah dipublish ke web dalam format CSV
-# Caranya:
-#   File → Share → Publish to the web → pilih "Comma-separated values (.csv)"
-# Lalu salin link CSV-nya ke bawah
 sheet_url = "https://docs.google.com/spreadsheets/d/1pYdy6fjiNM8dBVBrUzje4tW9gvvUKwN4fPu_r0MZThk/export?format=csv&gid=1786208895"
 
 try:
@@ -27,12 +23,18 @@ except Exception as e:
     st.error(f"❌ Gagal membaca data dari Google Sheets: {e}")
     st.stop()
 
-# Karena format dari Excel lama berisi beberapa sheet per tahun,
-# maka pastikan data CSV sekarang punya kolom 'Tahun'
-if "Tahun" not in df_raw.columns:
-    st.error("Kolom 'Tahun' tidak ditemukan di spreadsheet. Tambahkan kolom Tahun agar format sama dengan Excel lama.")
-    st.stop()
+# ==============================
+# PEMBERSIHAN DATA
+# ==============================
+# Trim spasi dan pastikan tipe data
+df_raw.columns = df_raw.columns.str.strip()
+for col in ["Nama Penyakit"]:
+    df_raw[col] = df_raw[col].astype(str).str.strip()
 
+for col in ["Tahun", "Minggu Ke-", "Jumlah Kasus"]:
+    df_raw[col] = pd.to_numeric(df_raw[col], errors="coerce").fillna(0).astype(int)
+
+# Copy ke df utama
 df = df_raw.copy()
 
 # Pastikan kolom kunci ada
@@ -40,8 +42,6 @@ expected_cols = ["Minggu Ke-", "Nama Penyakit", "Jumlah Kasus", "Tahun"]
 if not all(col in df.columns for col in expected_cols):
     st.error(f"❌ Pastikan spreadsheet memiliki kolom: {expected_cols}")
     st.stop()
-
-df["Tahun"] = df["Tahun"].astype(int)
 
 # ==============================
 # HEADER
@@ -83,7 +83,7 @@ sort_option = st.radio(
 )
 
 df_bar = df_filtered.groupby("Nama Penyakit", as_index=False)["Jumlah Kasus"].sum()
-ascending = True if "Ascending" in sort_option else False
+ascending = True if "Rendah" in sort_option else False
 df_bar = df_bar.sort_values(by="Jumlah Kasus", ascending=ascending)
 
 col_bar, col_pie = st.columns(2)
@@ -194,10 +194,13 @@ penyakit_pilih = st.selectbox(
 
 df_pilih = df_filtered[df_filtered["Nama Penyakit"] == penyakit_pilih].copy()
 if not df_pilih.empty:
-    df_pilih["Minggu Ke-"] = df_pilih["Minggu Ke-"].astype(int)
     df_pilih = df_pilih.sort_values(by="Minggu Ke-")
-    minggu_min = df_pilih["Minggu Ke-"].min()
-    df_pilih["Minggu Normal"] = df_pilih["Minggu Ke-"] - minggu_min + 1
+    # Gunakan minggu 1–53 sebagai normalisasi
+    df_pilih = pd.DataFrame({"Minggu Ke-": range(1, 54)}).merge(
+        df_pilih, on="Minggu Ke-", how="left"
+    ).fillna(0)
+    df_pilih["Jumlah Kasus"] = df_pilih["Jumlah Kasus"].astype(int)
+    df_pilih["Minggu Normal"] = df_pilih["Minggu Ke-"]
 
     fig_line = px.line(
         df_pilih,
@@ -220,7 +223,7 @@ if not df_pilih.empty:
             yshift=10
         )
 
-    fig_line.update_xaxes(dtick=1, range=[0.5, df_pilih["Minggu Normal"].max() + 0.5])
+    fig_line.update_xaxes(dtick=1, range=[0.5, 53.5])
     st.plotly_chart(fig_line, use_container_width=True)
 
     total_kasus = int(df_pilih["Jumlah Kasus"].sum())
@@ -254,22 +257,14 @@ tahun_pilih_multi = st.multiselect(
 
 df_multi = df[(df["Nama Penyakit"] == penyakit_banding) & (df["Tahun"].isin(tahun_pilih_multi))].copy()
 if not df_multi.empty:
-    df_multi["Minggu Ke-"] = df_multi["Minggu Ke-"].astype(int)
-    minggu_lengkap = pd.DataFrame({"Minggu Ke-": range(1, 54)})
-
-    df_tampil = []
-    for th in sorted(df_multi["Tahun"].unique()):
-        df_th = df_multi[df_multi["Tahun"] == th][["Minggu Ke-", "Jumlah Kasus"]]
-        df_th = minggu_lengkap.merge(df_th, on="Minggu Ke-", how="left")
-        df_th["Jumlah Kasus"] = df_th["Jumlah Kasus"].fillna(0)
-        df_th["Tahun"] = th
-        df_tampil.append(df_th)
-
-    df_final = pd.concat(df_tampil, ignore_index=True)
+    df_multi = pd.DataFrame({"Minggu Ke-": range(1, 54)}).merge(
+        df_multi, on="Minggu Ke-", how="left"
+    ).fillna(0)
+    df_multi["Jumlah Kasus"] = df_multi["Jumlah Kasus"].astype(int)
 
     fig = go.Figure()
-    for th in sorted(df_final["Tahun"].unique()):
-        df_th = df_final[df_final["Tahun"] == th]
+    for th in sorted(df_multi["Tahun"].unique()):
+        df_th = df_multi[df_multi["Tahun"] == th]
         fig.add_trace(go.Scatter(
             x=df_th["Minggu Ke-"],
             y=df_th["Jumlah Kasus"],
